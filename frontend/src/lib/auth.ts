@@ -1,26 +1,44 @@
 // OWNER: FE-1
-// PURPOSE: Token management with dual cookie and localStorage persistence
+// PURPOSE: Token storage helpers (dual cookie + localStorage for client and middleware)
 
 const TOKEN_KEY = 'sms_token';
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
 
-  const local = localStorage.getItem(TOKEN_KEY);
-  if (local) return local;
+  // Try reading cookie first
+  const match = document.cookie.match(new RegExp(`(^|;\\s*)(${TOKEN_KEY})=([^;]*)`));
+  if (match && match[3]) {
+    return decodeURIComponent(match[3]);
+  }
 
-  const match = document.cookie.match(new RegExp('(^|;\\s*)sms_token=([^;]*)'));
-  return match ? decodeURIComponent(match[2]) : null;
+  // Fallback to localStorage
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch (_) {
+    return null;
+  }
 }
 
 export function setToken(token: string): void {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, token);
-  document.cookie = `sms_token=${encodeURIComponent(token)}; path=/; max-age=604800; SameSite=Lax`;
+
+  // Store in localStorage
+  try {
+    localStorage.setItem(TOKEN_KEY, token);
+  } catch (_) {}
+
+  // Store in cookie (path=/, max-age 7 days, SameSite=Lax)
+  const maxAge = 7 * 24 * 60 * 60;
+  document.cookie = `${TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
 export function clearToken(): void {
   if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
-  document.cookie = 'sms_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
+
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+  } catch (_) {}
+
+  document.cookie = `${TOKEN_KEY}=; path=/; max-age=0; SameSite=Lax`;
 }

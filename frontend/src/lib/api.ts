@@ -1,37 +1,43 @@
 // OWNER: FE-1
-// PURPOSE: Axios instance, request authorization injection, and 401 interception
+// PURPOSE: Axios instance, attach token, handle 401 redirect, unwrap API responses
 
 import axios, { AxiosError } from 'axios';
 import { getToken, clearToken } from './auth';
 
 const baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-export const api = axios.create({
+const api = axios.create({
   baseURL,
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-// Request interceptor: add Bearer token
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+api.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
-// Response interceptor: unwrap response.data.data & handle 401
 api.interceptors.response.use(
   (response) => {
-    // If backend returns { success, data, message }, unwrap data
+    // If response is a blob or stream, return raw response or response.data
+    if (response.config.responseType === 'blob') {
+      return response.data;
+    }
+    // Unwrap { success, message, data } from standard apiResponse
     if (response.data && response.data.data !== undefined) {
       return response.data.data;
     }
     return response.data;
   },
-  (error: AxiosError<any>) => {
+  (error: AxiosError<{ message?: string; errors?: any }>) => {
     if (error.response?.status === 401) {
       clearToken();
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
@@ -39,14 +45,13 @@ api.interceptors.response.use(
       }
     }
 
-    const resData = error.response?.data;
-    const normalizedError = {
-      message: resData?.message || error.message || 'An unexpected error occurred',
-      errors: resData?.errors || [],
-      status: error.response?.status,
-    };
+    const customError: any = new Error(
+      error.response?.data?.message || error.message || 'An unexpected error occurred'
+    );
+    customError.status = error.response?.status;
+    customError.errors = error.response?.data?.errors;
 
-    return Promise.reject(normalizedError);
+    return Promise.reject(customError);
   }
 );
 

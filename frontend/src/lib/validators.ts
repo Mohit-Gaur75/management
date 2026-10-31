@@ -1,19 +1,14 @@
 // OWNER: FE-1
-// PURPOSE: Common Zod validation schemas for authentication forms
+// PURPOSE: Shared Zod validation schemas (password rule: 9+ chars, upper, lower, special)
 
 import { z } from 'zod';
 
 export const passwordSchema = z
   .string()
   .min(9, 'Password must be at least 9 characters')
-  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-  .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
-
-export const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
-});
+  .regex(/[A-Z]/, 'Must contain at least 1 uppercase letter')
+  .regex(/[a-z]/, 'Must contain at least 1 lowercase letter')
+  .regex(/[^A-Za-z0-9]/, 'Must contain at least 1 special character');
 
 export const signupSchema = z
   .object({
@@ -26,6 +21,11 @@ export const signupSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
+
+export const loginSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
 
 export const forgotPasswordSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -41,8 +41,3 @@ export const resetPasswordSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
-
-export type LoginFormData = z.infer<typeof loginSchema>;
-export type SignupFormData = z.infer<typeof signupSchema>;
-export type ForgotPasswordFormData = z.infer<typeof forgotPasswordSchema>;
-export type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
